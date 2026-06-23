@@ -59,9 +59,15 @@ python -m pip install \
   packaging \
   setuptools \
   einops \
-  "triton>=3.0.0"
+  "triton>=3.0.0" \
+  python-dotenv \
+  openai \
+  litellm \
+  pydra-config \
+  tomli \
+  tabulate
 
-python -m pip install -e "$SCIKERNELBENCH_ROOT"
+python -m pip install --no-deps -e "$SCIKERNELBENCH_ROOT"
 
 python - <<'PY'
 import torch
