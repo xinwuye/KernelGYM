@@ -64,6 +64,9 @@ Server feedback (status/metrics/errors):
 Return an improved Triton implementation named `ModelNew` as a single ```python``` block. Let's think step by step."""
 
 
+DEFAULT_DRKERNEL_STOP_TOKEN_IDS = "872,77091,151645,151644"
+
+
 @dataclass
 class TurnEval:
     compiled: bool
@@ -332,6 +335,20 @@ def render_messages(tokenizer: Any, messages: list[dict[str, str]], enable_think
     return tokenizer.apply_chat_template(messages, **kwargs)
 
 
+def parse_stop_token_ids(raw_ids: str, tokenizer: Any) -> list[int]:
+    stop_ids: list[int] = []
+    if raw_ids:
+        for raw_id in raw_ids.split(","):
+            item = raw_id.strip()
+            if item:
+                stop_ids.append(int(item))
+    if tokenizer.eos_token_id is not None:
+        stop_ids.append(int(tokenizer.eos_token_id))
+    if not stop_ids:
+        raise ValueError("No stop token ids configured and tokenizer has no eos_token_id")
+    return sorted(set(stop_ids))
+
+
 def load_model(args: argparse.Namespace):
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -357,6 +374,7 @@ def generate_response(tokenizer: Any, model: Any, messages: list[dict[str, str]]
 
     prompt = render_messages(tokenizer, messages, args.enable_thinking)
     inputs = tokenizer([prompt], return_tensors="pt").to(args.model_device)
+    stop_token_ids = parse_stop_token_ids(args.stop_token_ids, tokenizer)
     with torch.inference_mode():
         output = model.generate(
             **inputs,
@@ -365,7 +383,7 @@ def generate_response(tokenizer: Any, model: Any, messages: list[dict[str, str]]
             temperature=args.temperature,
             top_p=args.top_p,
             pad_token_id=tokenizer.pad_token_id,
-            eos_token_id=tokenizer.eos_token_id,
+            eos_token_id=stop_token_ids,
         )
     generated = output[0, inputs["input_ids"].shape[1] :]
     return tokenizer.decode(generated, skip_special_tokens=True)
@@ -383,6 +401,20 @@ def run_agent(args: argparse.Namespace) -> int:
     reference_path.write_text(problem.code, encoding="utf-8")
 
     tokenizer, model = load_model(args)
+    print(
+        json.dumps(
+            {
+                "event": "model_loaded",
+                "problem_id": args.problem_id,
+                "model": args.model,
+                "model_device": args.model_device,
+                "max_new_tokens": args.max_new_tokens,
+                "stop_token_ids": parse_stop_token_ids(args.stop_token_ids, tokenizer),
+            },
+            default=_json_default,
+        ),
+        flush=True,
+    )
 
     all_samples = []
     best_record: dict[str, Any] | None = None
@@ -393,7 +425,30 @@ def run_agent(args: argparse.Namespace) -> int:
         turn_records = []
 
         for turn_id in range(1, args.max_turns + 1):
+            print(
+                json.dumps(
+                    {
+                        "event": "generation_start",
+                        "problem_id": args.problem_id,
+                        "sample_id": sample_id,
+                        "turn_id": turn_id,
+                    }
+                ),
+                flush=True,
+            )
             response = generate_response(tokenizer, model, messages, args)
+            print(
+                json.dumps(
+                    {
+                        "event": "generation_done",
+                        "problem_id": args.problem_id,
+                        "sample_id": sample_id,
+                        "turn_id": turn_id,
+                        "response_chars": len(response),
+                    }
+                ),
+                flush=True,
+            )
             response_path = sample_dir / f"turn_{turn_id:02d}_response.txt"
             response_path.write_text(response, encoding="utf-8")
 
@@ -418,6 +473,18 @@ def run_agent(args: argparse.Namespace) -> int:
                 kernel_path = sample_dir / f"turn_{turn_id:02d}_kernel.py"
                 kernel_path.write_text(kernel_code + "\n", encoding="utf-8")
                 eval_path = sample_dir / f"turn_{turn_id:02d}_scikernelbench_eval.json"
+                print(
+                    json.dumps(
+                        {
+                            "event": "eval_start",
+                            "problem_id": args.problem_id,
+                            "sample_id": sample_id,
+                            "turn_id": turn_id,
+                            "kernel_chars": len(kernel_code),
+                        }
+                    ),
+                    flush=True,
+                )
                 turn_eval = run_eval_subprocess(
                     script_path=script_path,
                     scikernelbench_root=scikernelbench_root,
@@ -427,6 +494,24 @@ def run_agent(args: argparse.Namespace) -> int:
                     build_dir=sample_dir / f"turn_{turn_id:02d}_build",
                     args=args,
                 )
+            print(
+                json.dumps(
+                    {
+                        "event": "eval_done",
+                        "problem_id": args.problem_id,
+                        "sample_id": sample_id,
+                        "turn_id": turn_id,
+                        "compiled": turn_eval.compiled,
+                        "correctness": turn_eval.correctness,
+                        "runtime": turn_eval.runtime,
+                        "ref_runtime": turn_eval.ref_runtime,
+                        "speedup": turn_eval.speedup,
+                        "score": turn_eval.score,
+                    },
+                    default=_json_default,
+                ),
+                flush=True,
+            )
 
             record = {
                 "sample_id": sample_id,
@@ -562,6 +647,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--max-turns", type=int, default=3)
     run_parser.add_argument("--output-dir", required=True)
     run_parser.add_argument("--max-new-tokens", type=int, default=8192)
+    run_parser.add_argument("--stop-token-ids", default=DEFAULT_DRKERNEL_STOP_TOKEN_IDS)
     run_parser.add_argument("--temperature", type=float, default=1.0)
     run_parser.add_argument("--top-p", type=float, default=0.95)
     run_parser.add_argument("--do-sample", action=argparse.BooleanOptionalAction, default=True)

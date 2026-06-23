@@ -42,6 +42,7 @@ python scripts/drkernel_scikernelbench_agent.py run-agent \
   --problem-id "$SLURM_ARRAY_TASK_ID" \
   --samples 1 \
   --max-turns 3 \
+  --max-new-tokens 2048 \
   --output-dir "$OUTPUT_ROOT" \
   --model-device cuda:0 \
   --eval-visible-index 1 \
