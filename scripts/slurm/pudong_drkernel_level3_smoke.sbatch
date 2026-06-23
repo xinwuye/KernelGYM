@@ -75,6 +75,17 @@ export TRITON_CACHE_DIR="$CACHE_BASE/triton"
 export CUDA_CACHE_PATH="$CACHE_BASE/cuda"
 export TMPDIR="$CACHE_BASE/tmp"
 
+VLLM_PORT_BASE="${VLLM_PORT_BASE:-20000}"
+VLLM_PORT_STRIDE="${VLLM_PORT_STRIDE:-20}"
+VLLM_PORT_RANGE="${VLLM_PORT_RANGE:-2000}"
+VLLM_PORT_VALUE=$((VLLM_PORT_BASE + (SLURM_JOB_ID % VLLM_PORT_RANGE) * VLLM_PORT_STRIDE))
+if [ "$VLLM_PORT_VALUE" -gt 65515 ]; then
+  echo "Computed VLLM_PORT is too high: $VLLM_PORT_VALUE" >&2
+  exit 1
+fi
+export VLLM_PORT="$VLLM_PORT_VALUE"
+export MASTER_PORT="$VLLM_PORT_VALUE"
+
 cd "$KERNELGYM_ROOT"
 
 python scripts/drkernel_scikernelbench_agent.py run-agent \
