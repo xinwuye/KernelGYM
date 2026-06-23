@@ -15,6 +15,7 @@ ENV_NAME="${ENV_NAME:-drkernel-scikernelbench}"
 KERNELGYM_ROOT="${KERNELGYM_ROOT:-/public/home/xinwuye/KernelGYM}"
 SCIKERNELBENCH_ROOT="${SCIKERNELBENCH_ROOT:-/public/home/xinwuye/SciKernelBench}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-/public/home/xinwuye/drkernel_scikernelbench_runs/smoke}"
+MODEL_PATH="${MODEL_PATH:-/public/home/xinwuye/models/drkernel-14b}"
 
 mkdir -p /public/home/xinwuye/drkernel_scikernelbench_runs/logs
 
@@ -36,7 +37,7 @@ cd "$KERNELGYM_ROOT"
 
 python scripts/drkernel_scikernelbench_agent.py run-agent \
   --scikernelbench-root "$SCIKERNELBENCH_ROOT" \
-  --model hkust-nlp/drkernel-14b \
+  --model "$MODEL_PATH" \
   --level 3 \
   --problem-id "$SLURM_ARRAY_TASK_ID" \
   --samples 1 \
