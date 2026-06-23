@@ -53,6 +53,27 @@ export LD_LIBRARY_PATH="${NVIDIA_LIB_PATHS}:${LD_LIBRARY_PATH:-}"
 export PYTHONPATH="$KERNELGYM_ROOT:${SCIKERNELBENCH_ROOT}/src:${PYTHONPATH:-}"
 export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 
+CACHE_BASE="${SLURM_TMPDIR:-/tmp}/xinwuye_drkernel_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+mkdir -p \
+  "$CACHE_BASE/flashinfer" \
+  "$CACHE_BASE/vllm" \
+  "$CACHE_BASE/xdg" \
+  "$CACHE_BASE/torchinductor" \
+  "$CACHE_BASE/triton" \
+  "$CACHE_BASE/cuda" \
+  "$CACHE_BASE/tmp"
+if [ ! -w "$CACHE_BASE" ]; then
+  echo "Cache base is not writable: $CACHE_BASE" >&2
+  exit 1
+fi
+export FLASHINFER_WORKSPACE_BASE="$CACHE_BASE/flashinfer"
+export VLLM_CACHE_ROOT="$CACHE_BASE/vllm"
+export XDG_CACHE_HOME="$CACHE_BASE/xdg"
+export TORCHINDUCTOR_CACHE_DIR="$CACHE_BASE/torchinductor"
+export TRITON_CACHE_DIR="$CACHE_BASE/triton"
+export CUDA_CACHE_PATH="$CACHE_BASE/cuda"
+export TMPDIR="$CACHE_BASE/tmp"
+
 cd "$KERNELGYM_ROOT"
 
 python scripts/drkernel_scikernelbench_agent.py run-agent \
