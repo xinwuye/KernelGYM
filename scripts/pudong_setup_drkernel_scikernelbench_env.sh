@@ -4,6 +4,9 @@ set -euo pipefail
 ENV_NAME="${ENV_NAME:-drkernel-scikernelbench}"
 KERNELGYM_ROOT="${KERNELGYM_ROOT:-/public/home/xinwuye/KernelGYM}"
 SCIKERNELBENCH_ROOT="${SCIKERNELBENCH_ROOT:-/public/home/xinwuye/SciKernelBench}"
+export PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+export PIP_DEFAULT_TIMEOUT="${PIP_DEFAULT_TIMEOUT:-120}"
+export PIP_DISABLE_PIP_VERSION_CHECK=1
 
 if ! command -v conda >/dev/null 2>&1; then
   if [ -f "$HOME/miniconda/etc/profile.d/conda.sh" ]; then
