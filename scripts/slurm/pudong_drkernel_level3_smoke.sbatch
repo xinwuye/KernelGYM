@@ -18,7 +18,10 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-/public/home/xinwuye/drkernel_scikernelbench_runs/sm
 
 mkdir -p /public/home/xinwuye/drkernel_scikernelbench_runs/logs
 
-if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+if [ -f "$HOME/miniconda/etc/profile.d/conda.sh" ]; then
+  # shellcheck disable=SC1091
+  source "$HOME/miniconda/etc/profile.d/conda.sh"
+elif [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
   # shellcheck disable=SC1091
   source "$HOME/miniconda3/etc/profile.d/conda.sh"
 elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then

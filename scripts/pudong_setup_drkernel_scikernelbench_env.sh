@@ -6,7 +6,10 @@ KERNELGYM_ROOT="${KERNELGYM_ROOT:-/public/home/xinwuye/KernelGYM}"
 SCIKERNELBENCH_ROOT="${SCIKERNELBENCH_ROOT:-/public/home/xinwuye/SciKernelBench}"
 
 if ! command -v conda >/dev/null 2>&1; then
-  if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+  if [ -f "$HOME/miniconda/etc/profile.d/conda.sh" ]; then
+    # shellcheck disable=SC1091
+    source "$HOME/miniconda/etc/profile.d/conda.sh"
+  elif [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
     # shellcheck disable=SC1091
     source "$HOME/miniconda3/etc/profile.d/conda.sh"
   elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
