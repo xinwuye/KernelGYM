@@ -35,7 +35,8 @@ if ! conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
 fi
 
 conda activate "$ENV_NAME"
-python -m pip install --upgrade pip setuptools wheel
+python -m pip install --upgrade pip wheel
+python -m pip install "setuptools<82"
 
 # PyTorch first, then project dependencies. Override TORCH_INDEX_URL if Pudong
 # needs a site-local or domestic mirror.
@@ -65,8 +66,16 @@ python -m pip install \
   litellm \
   pydra-config \
   tomli \
-  tabulate \
-  vllm
+  tabulate
+
+python -m pip install \
+  "vllm==0.23.0" \
+  "transformers==5.12.1" \
+  "tokenizers==0.22.2" \
+  "opentelemetry-api==1.42.1" \
+  "opentelemetry-sdk==1.42.1" \
+  "opentelemetry-exporter-otlp==1.42.1" \
+  "fastapi==0.136.3"
 
 python -m pip install --no-deps -e "$SCIKERNELBENCH_ROOT"
 
