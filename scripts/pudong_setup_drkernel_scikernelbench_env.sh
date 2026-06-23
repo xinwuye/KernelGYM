@@ -38,6 +38,29 @@ if ! conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
 fi
 
 conda activate "$ENV_NAME"
+
+configure_nvidia_python_libs() {
+  local lib_paths
+  lib_paths="$(python - <<'PY'
+import site
+from pathlib import Path
+
+paths = []
+root = Path(site.getsitepackages()[0]) / "nvidia"
+if root.is_dir():
+    for path in sorted(root.glob("**/lib*")):
+        if path.is_dir():
+            paths.append(str(path))
+print(":".join(paths))
+PY
+)"
+  if [ -z "$lib_paths" ]; then
+    echo "No Python NVIDIA library paths found under the active conda env" >&2
+    exit 1
+  fi
+  export LD_LIBRARY_PATH="${lib_paths}:${LD_LIBRARY_PATH:-}"
+}
+
 python -m pip install --upgrade pip wheel
 python -m pip install "setuptools<82"
 
@@ -82,16 +105,20 @@ python -m pip install \
 
 python -m pip install --no-deps -e "$SCIKERNELBENCH_ROOT"
 
+configure_nvidia_python_libs
+
 python - <<'PY'
 import torch
 import transformers
 import triton
 import vllm
+from vllm import LLM
 import kernelbench
 print("torch", torch.__version__, "cuda", torch.version.cuda)
 print("cuda_available", torch.cuda.is_available())
 print("transformers", transformers.__version__)
 print("triton", triton.__version__)
 print("vllm", vllm.__version__)
+print("vllm_llm", LLM)
 print("kernelbench", getattr(kernelbench, "__file__", "ok"))
 PY

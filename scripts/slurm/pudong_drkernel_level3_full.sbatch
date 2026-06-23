@@ -30,6 +30,26 @@ elif [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
   source "$HOME/anaconda3/etc/profile.d/conda.sh"
 fi
 conda activate "$ENV_NAME"
+
+NVIDIA_LIB_PATHS="$(python - <<'PY'
+import site
+from pathlib import Path
+
+paths = []
+root = Path(site.getsitepackages()[0]) / "nvidia"
+if root.is_dir():
+    for path in sorted(root.glob("**/lib*")):
+        if path.is_dir():
+            paths.append(str(path))
+print(":".join(paths))
+PY
+)"
+if [ -z "$NVIDIA_LIB_PATHS" ]; then
+  echo "No Python NVIDIA library paths found under the active conda env" >&2
+  exit 1
+fi
+export LD_LIBRARY_PATH="${NVIDIA_LIB_PATHS}:${LD_LIBRARY_PATH:-}"
+
 export PYTHONPATH="$KERNELGYM_ROOT:${SCIKERNELBENCH_ROOT}/src:${PYTHONPATH:-}"
 export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 
