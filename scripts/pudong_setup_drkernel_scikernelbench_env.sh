@@ -65,7 +65,8 @@ python -m pip install \
   litellm \
   pydra-config \
   tomli \
-  tabulate
+  tabulate \
+  vllm
 
 python -m pip install --no-deps -e "$SCIKERNELBENCH_ROOT"
 
@@ -73,10 +74,12 @@ python - <<'PY'
 import torch
 import transformers
 import triton
+import vllm
 import kernelbench
 print("torch", torch.__version__, "cuda", torch.version.cuda)
 print("cuda_available", torch.cuda.is_available())
 print("transformers", transformers.__version__)
 print("triton", triton.__version__)
+print("vllm", vllm.__version__)
 print("kernelbench", getattr(kernelbench, "__file__", "ok"))
 PY

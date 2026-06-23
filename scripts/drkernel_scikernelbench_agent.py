@@ -369,6 +369,33 @@ def load_model(args: argparse.Namespace):
     return tokenizer, model
 
 
+def load_generator(args: argparse.Namespace):
+    if args.generation_backend == "transformers":
+        return (*load_model(args), None)
+    if args.generation_backend == "vllm":
+        from vllm import LLM, SamplingParams
+
+        llm = LLM(
+            model=args.model,
+            dtype=args.model_dtype,
+            trust_remote_code=args.trust_remote_code,
+            tensor_parallel_size=args.vllm_tensor_parallel_size,
+            gpu_memory_utilization=args.vllm_gpu_memory_utilization,
+            max_model_len=args.vllm_max_model_len,
+        )
+        tokenizer = llm.get_tokenizer()
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        sampling_params = SamplingParams(
+            max_tokens=args.max_new_tokens,
+            temperature=args.temperature if args.do_sample else 0.0,
+            top_p=args.top_p,
+            stop_token_ids=parse_stop_token_ids(args.stop_token_ids, tokenizer),
+        )
+        return tokenizer, llm, sampling_params
+    raise ValueError(f"Unknown generation backend: {args.generation_backend}")
+
+
 def generate_response(tokenizer: Any, model: Any, messages: list[dict[str, str]], args: argparse.Namespace) -> str:
     import torch
 
@@ -389,6 +416,34 @@ def generate_response(tokenizer: Any, model: Any, messages: list[dict[str, str]]
     return tokenizer.decode(generated, skip_special_tokens=True)
 
 
+def generate_response_vllm(
+    tokenizer: Any,
+    llm: Any,
+    sampling_params: Any,
+    messages: list[dict[str, str]],
+    args: argparse.Namespace,
+) -> str:
+    prompt = render_messages(tokenizer, messages, args.enable_thinking)
+    outputs = llm.generate([prompt], sampling_params=sampling_params, use_tqdm=False)
+    if len(outputs) != 1 or not outputs[0].outputs:
+        raise RuntimeError("vLLM did not return exactly one generated output")
+    return outputs[0].outputs[0].text
+
+
+def generate_agent_response(
+    tokenizer: Any,
+    generator: Any,
+    sampling_params: Any,
+    messages: list[dict[str, str]],
+    args: argparse.Namespace,
+) -> str:
+    if args.generation_backend == "transformers":
+        return generate_response(tokenizer, generator, messages, args)
+    if args.generation_backend == "vllm":
+        return generate_response_vllm(tokenizer, generator, sampling_params, messages, args)
+    raise ValueError(f"Unknown generation backend: {args.generation_backend}")
+
+
 def run_agent(args: argparse.Namespace) -> int:
     scikernelbench_root = Path(args.scikernelbench_root).resolve()
     output_dir = Path(args.output_dir).resolve()
@@ -400,16 +455,20 @@ def run_agent(args: argparse.Namespace) -> int:
     reference_path = problem_dir / "reference.py"
     reference_path.write_text(problem.code, encoding="utf-8")
 
-    tokenizer, model = load_model(args)
+    tokenizer, generator, sampling_params = load_generator(args)
     print(
         json.dumps(
             {
                 "event": "model_loaded",
                 "problem_id": args.problem_id,
                 "model": args.model,
+                "generation_backend": args.generation_backend,
                 "model_device": args.model_device,
                 "max_new_tokens": args.max_new_tokens,
                 "stop_token_ids": parse_stop_token_ids(args.stop_token_ids, tokenizer),
+                "vllm_tensor_parallel_size": args.vllm_tensor_parallel_size,
+                "vllm_gpu_memory_utilization": args.vllm_gpu_memory_utilization,
+                "vllm_max_model_len": args.vllm_max_model_len,
             },
             default=_json_default,
         ),
@@ -436,7 +495,7 @@ def run_agent(args: argparse.Namespace) -> int:
                 ),
                 flush=True,
             )
-            response = generate_response(tokenizer, model, messages, args)
+            response = generate_agent_response(tokenizer, generator, sampling_params, messages, args)
             print(
                 json.dumps(
                     {
@@ -637,6 +696,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run-agent")
     add_common_eval_args(run_parser)
     run_parser.add_argument("--model", default="hkust-nlp/drkernel-14b")
+    run_parser.add_argument("--generation-backend", choices=["transformers", "vllm"], default="transformers")
     run_parser.add_argument("--model-device", default="cuda:0")
     run_parser.add_argument("--model-dtype", default="bfloat16", choices=["float16", "bfloat16", "float32"])
     run_parser.add_argument("--trust-remote-code", action="store_true")
@@ -655,6 +715,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--eval-visible-index", type=int, default=None)
     run_parser.add_argument("--eval-timeout", type=int, default=900)
     run_parser.add_argument("--verbose-eval", action="store_true")
+    run_parser.add_argument("--vllm-tensor-parallel-size", type=int, default=1)
+    run_parser.add_argument("--vllm-gpu-memory-utilization", type=float, default=0.5)
+    run_parser.add_argument("--vllm-max-model-len", type=int, default=28672)
     run_parser.set_defaults(func=run_agent)
 
     eval_parser = subparsers.add_parser("eval-one")

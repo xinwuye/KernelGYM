@@ -38,6 +38,7 @@ cd "$KERNELGYM_ROOT"
 python scripts/drkernel_scikernelbench_agent.py run-agent \
   --scikernelbench-root "$SCIKERNELBENCH_ROOT" \
   --model "$MODEL_PATH" \
+  --generation-backend vllm \
   --level 3 \
   --problem-id "$SLURM_ARRAY_TASK_ID" \
   --samples 1 \
@@ -47,6 +48,9 @@ python scripts/drkernel_scikernelbench_agent.py run-agent \
   --model-device cuda:0 \
   --eval-visible-index 1 \
   --eval-device cuda:0 \
+  --vllm-tensor-parallel-size 1 \
+  --vllm-gpu-memory-utilization 0.5 \
+  --vllm-max-model-len 28672 \
   --backend triton \
   --precision fp32 \
   --num-correct-trials 2 \
