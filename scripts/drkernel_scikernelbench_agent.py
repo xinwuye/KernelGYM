@@ -292,15 +292,43 @@ def run_eval_subprocess(
     ]
     if args.verbose_eval:
         cmd.append("--verbose")
-    completed = subprocess.run(
-        cmd,
-        env=child_eval_env(args.eval_visible_index),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=args.eval_timeout,
-        check=False,
-    )
+    started = time.time()
+    try:
+        completed = subprocess.run(
+            cmd,
+            env=child_eval_env(args.eval_visible_index),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=args.eval_timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr = exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        if stdout:
+            (output_path.parent / (output_path.stem + ".stdout.txt")).write_text(stdout, encoding="utf-8")
+        if stderr:
+            (output_path.parent / (output_path.stem + ".stderr.txt")).write_text(stderr, encoding="utf-8")
+        payload = {
+            "ok": False,
+            "error": f"eval subprocess timed out after {args.eval_timeout} seconds",
+            "elapsed_sec": time.time() - started,
+            "result": {
+                "compiled": False,
+                "correctness": False,
+                "runtime": -1.0,
+                "ref_runtime": -1.0,
+                "metadata": {
+                    "eval_timeout_sec": args.eval_timeout,
+                    "timeout_command": cmd,
+                    "stdout_tail": stdout[-4000:],
+                    "stderr_tail": stderr[-4000:],
+                },
+            },
+        }
+        write_json(output_path, payload)
+        return parse_eval_payload(payload)
     if completed.stdout:
         (output_path.parent / (output_path.stem + ".stdout.txt")).write_text(completed.stdout, encoding="utf-8")
     if completed.stderr:
