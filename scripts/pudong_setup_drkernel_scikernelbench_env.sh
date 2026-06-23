@@ -102,6 +102,7 @@ python -m pip install \
   "opentelemetry-sdk==1.42.1" \
   "opentelemetry-exporter-otlp==1.42.1" \
   "fastapi==0.136.3"
+python -m pip install --force-reinstall --no-cache-dir "PyYAML==6.0.3"
 
 python -m pip install --no-deps -e "$SCIKERNELBENCH_ROOT"
 
